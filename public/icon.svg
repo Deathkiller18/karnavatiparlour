@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#7a1f2b"/>
+  <g fill="#f2b705"><path d="M96 96l40 62 40-62zM216 96l40 62 40-62zM336 96l40 62 40-62z"/></g>
+  <g fill="#1e7b4c"><path d="M156 96l40 62 40-62zM276 96l40 62 40-62z"/></g>
+  <rect x="80" y="84" width="352" height="14" rx="7" fill="#fff7e8"/>
+  <text x="256" y="372" text-anchor="middle" font-size="220" font-weight="800" font-family="sans-serif" fill="#fff7e8">ક</text>
+</svg>

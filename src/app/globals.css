@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-body), "Noto Sans Gujarati", system-ui, sans-serif;
+  --font-display: var(--font-display), var(--font-body), system-ui, sans-serif;
+  --color-kesari: #e8650a;
+  --color-kesari-dark: #c24f02;
+  --color-maroon: #7a1f2b;
+  --color-maroon-dark: #5c1420;
+  --color-haldi: #f2b705;
+  --color-leaf: #1e7b4c;
+  --color-cream: #fff7e8;
+  --color-sand: #f3e3c3;
+  --color-ink: #3b2416;
+  --color-muted: #8a6f5a;
+}
+
+html {
+  background: #fff7e8;
+}
+body {
+  color: #3b2416;
+  background: #fff7e8;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Bandhani dots on the header */
+.bandhani {
+  background-color: #7a1f2b;
+  background-image:
+    radial-gradient(circle, rgba(255, 247, 232, 0.22) 1.5px, transparent 2px),
+    radial-gradient(circle, rgba(242, 183, 5, 0.3) 1.5px, transparent 2px);
+  background-size: 18px 18px, 18px 18px;
+  background-position: 0 0, 9px 9px;
+}
+
+/* Toran — festive bunting hanging under the header */
+.toran {
+  height: 14px;
+  background:
+    conic-gradient(from 150deg at 50% 0, #f2b705 60deg, transparent 0) 0 0 / 32px 14px repeat-x,
+    conic-gradient(from 150deg at 50% 0, #1e7b4c 60deg, transparent 0) 16px 0 / 32px 14px repeat-x;
+}
+
+@utility card {
+  @apply rounded-2xl border border-sand bg-white shadow-[0_1px_0_rgba(122,31,43,0.06)];
+}
+@utility input {
+  @apply w-full rounded-xl border border-sand bg-white px-3 py-2.5 text-base text-ink outline-none focus:border-kesari focus:ring-2 focus:ring-kesari/25;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 font-semibold transition active:scale-[0.98] disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 font-semibold transition active:scale-[0.98] disabled:opacity-50 bg-kesari text-white hover:bg-kesari-dark;
+}
+@utility btn-maroon {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 font-semibold transition active:scale-[0.98] disabled:opacity-50 bg-maroon text-white hover:bg-maroon-dark;
+}
+@utility btn-ghost {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 font-semibold transition active:scale-[0.98] disabled:opacity-50 border border-sand bg-white text-ink hover:bg-cream;
+}
+@utility chip {
+  @apply shrink-0 rounded-full border border-sand bg-white px-3 py-1.5 text-sm font-medium text-ink whitespace-nowrap;
+}
+@utility chip-on {
+  @apply border-maroon bg-maroon text-white;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+}
