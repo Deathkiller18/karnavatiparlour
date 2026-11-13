@@ -74,16 +74,57 @@ const load = (): Store => {
   } catch {}
   return { products: [], sales: [], stock_entries: [], expenses: [] };
 };
-const save = (s: Store) => localStorage.setItem(KEY, JSON.stringify(s));
+const save = (s: Store) => {
+  localStorage.setItem(KEY, JSON.stringify(s));
+  changed();
+};
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const between = (d: string, from: string, to: string) => d >= from && d <= to;
 const newest = <T extends { created_at: string }>(a: T[]) =>
   [...a].sort((x, y) => y.created_at.localeCompare(x.created_at));
 
-function unwrap<T>(r: { data: T | null; error: { message: string } | null }): T {
+type Res<T> = { data: T | null; error: { message: string } | null };
+
+function unwrap<T>(r: Res<T>): T {
   if (r.error) throw new Error(r.error.message);
   return r.data as T;
+}
+
+/** Other parts of the screen (the low-stock badge) listen for this. */
+const changed = () => window.dispatchEvent(new Event("kp-changed"));
+function wrote<T>(r: Res<T>): T {
+  const d = unwrap(r);
+  changed();
+  return d;
+}
+
+/** Supabase returns at most 1000 rows per request, so read page by page. */
+async function fetchAll<T>(page: (from: number, to: number) => PromiseLike<Res<T[]>>) {
+  const SIZE = 1000;
+  const out: T[] = [];
+  for (let i = 0; ; i += SIZE) {
+    const rows = unwrap(await page(i, i + SIZE - 1));
+    out.push(...rows);
+    if (rows.length < SIZE) return out;
+  }
+}
+
+/** Turns raw database / network errors into something a shopkeeper can act on. */
+export function friendly(msg: string): string {
+  if (/failed to fetch|networkerror|load failed/i.test(msg))
+    return "ઇન્ટરનેટ બંધ લાગે છે. ફરી પ્રયત્ન કરો. (No internet — try again.)";
+  if (/schema cache|does not exist|could not find the table/i.test(msg))
+    return "ડેટાબેઝ તૈયાર નથી: Supabase SQL Editor માં supabase/schema.sql ચલાવો. (Run supabase/schema.sql in Supabase.)";
+  if (/invalid login credentials/i.test(msg))
+    return "ઈમેલ અથવા પાસવર્ડ ખોટો છે. (Wrong email or password.)";
+  if (/email not confirmed/i.test(msg))
+    return "પહેલા ઈમેલમાં આવેલી લિંક ખોલીને ખાતું ચાલુ કરો. (Confirm your email first.)";
+  if (/already registered/i.test(msg))
+    return "આ ઈમેલનું ખાતું પહેલેથી છે, લોગિન કરો. (Account exists — log in.)";
+  if (/invalid api key|jwt/i.test(msg))
+    return "Supabase key ખોટી છે — Vercel ના Environment Variables તપાસો. (" + msg + ")";
+  return msg;
 }
 
 // ---------- products ----------
@@ -92,8 +133,8 @@ export async function listProducts(): Promise<Product[]> {
     return load()
       .products.filter((p) => p.active)
       .sort((a, b) => a.name.localeCompare(b.name));
-  return unwrap(
-    await supabase.from("products").select("*").eq("active", true).order("name"),
+  return fetchAll<Product>((a, b) =>
+    supabase!.from("products").select("*").eq("active", true).order("name").order("id").range(a, b),
   );
 }
 
@@ -112,7 +153,7 @@ export async function saveProduct(input: ProductInput, id?: string): Promise<Pro
   const q = id
     ? supabase.from("products").update(input).eq("id", id)
     : supabase.from("products").insert(input);
-  return unwrap(await q.select().single());
+  return wrote(await q.select().single());
 }
 
 /** Soft delete so old sales/reports stay intact. */
@@ -123,7 +164,7 @@ export async function removeProduct(id: string) {
     if (p) p.active = false;
     return save(s);
   }
-  unwrap(await supabase.from("products").update({ active: false }).eq("id", id).select());
+  wrote(await supabase.from("products").update({ active: false }).eq("id", id).select());
 }
 
 // ---------- stock in ----------
@@ -153,19 +194,21 @@ export async function addStock(e: {
     }
     return save(s);
   }
-  unwrap(await supabase.from("stock_entries").insert(row).select());
+  wrote(await supabase.from("stock_entries").insert(row).select());
 }
 
 export async function listStockEntries(from: string, to: string): Promise<StockEntry[]> {
   if (!supabase)
     return newest(load().stock_entries.filter((e) => between(e.entry_date, from, to)));
-  return unwrap(
-    await supabase
+  return fetchAll<StockEntry>((a, b) =>
+    supabase!
       .from("stock_entries")
       .select("*")
       .gte("entry_date", from)
       .lte("entry_date", to)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(a, b),
   );
 }
 
@@ -180,7 +223,7 @@ export async function deleteStockEntry(id: string) {
     }
     return save(s);
   }
-  unwrap(await supabase.from("stock_entries").delete().eq("id", id).select());
+  wrote(await supabase.from("stock_entries").delete().eq("id", id).select());
 }
 
 // ---------- sales ----------
@@ -213,19 +256,20 @@ export async function createSale(
     }
     return save(s);
   }
-  unwrap(await supabase.from("sales").insert(rows).select());
+  wrote(await supabase.from("sales").insert(rows).select());
 }
 
 export async function listSales(from: string, to: string): Promise<Sale[]> {
   if (!supabase) return newest(load().sales.filter((e) => between(e.sale_date, from, to)));
-  return unwrap(
-    await supabase
+  return fetchAll<Sale>((a, b) =>
+    supabase!
       .from("sales")
       .select("*")
       .gte("sale_date", from)
       .lte("sale_date", to)
       .order("created_at", { ascending: false })
-      .limit(10000),
+      .order("id")
+      .range(a, b),
   );
 }
 
@@ -241,19 +285,21 @@ export async function deleteSale(id: string) {
     }
     return save(s);
   }
-  unwrap(await supabase.from("sales").delete().eq("id", id).select());
+  wrote(await supabase.from("sales").delete().eq("id", id).select());
 }
 
 // ---------- expenses ----------
 export async function listExpenses(from: string, to: string): Promise<Expense[]> {
   if (!supabase) return newest(load().expenses.filter((e) => between(e.exp_date, from, to)));
-  return unwrap(
-    await supabase
+  return fetchAll<Expense>((a, b) =>
+    supabase!
       .from("expenses")
       .select("*")
       .gte("exp_date", from)
       .lte("exp_date", to)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(a, b),
   );
 }
 
@@ -263,7 +309,7 @@ export async function addExpense(e: Omit<Expense, "id" | "created_at">) {
     s.expenses.push({ ...e, id: uid(), created_at: now() });
     return save(s);
   }
-  unwrap(await supabase.from("expenses").insert(e).select());
+  wrote(await supabase.from("expenses").insert(e).select());
 }
 
 export async function deleteExpense(id: string) {
@@ -272,7 +318,7 @@ export async function deleteExpense(id: string) {
     s.expenses = s.expenses.filter((x) => x.id !== id);
     return save(s);
   }
-  unwrap(await supabase.from("expenses").delete().eq("id", id).select());
+  wrote(await supabase.from("expenses").delete().eq("id", id).select());
 }
 
 export const sum = <T>(a: T[], f: (x: T) => number) => round2(a.reduce((t, x) => t + f(x), 0));

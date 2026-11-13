@@ -21,7 +21,10 @@ Env vars ke bina app **demo mode** mein chalta hai (data sirf us browser mein) �
 1. [supabase.com](https://supabase.com) par naya project banao.
 2. **SQL Editor** → `supabase/schema.sql` ka pura content paste karo → **Run**.
 3. **Project Settings → API** se `Project URL` aur `anon public` key copy karo.
-4. (Optional) **Authentication → Providers → Email** mein "Confirm email" band kar do to signup ke turant baad login ho jayega.
+4. **Authentication → Sign In / Providers → Email** mein "Confirm email" band kar do — signup ke turant baad login ho jayega (sabse aasaan).
+5. Agar confirm email chalu rakhna hai ya "password bhool gaye" use karna hai: **Authentication → URL Configuration** mein **Site URL** apni Vercel link rakho (jaise `https://karnavatiparlour.vercel.app`), warna email ki link `localhost` par khulegi.
+
+Key ka naam `anon` ho ya naya `publishable` (`sb_publishable_...`) — dono chalti hain.
 
 ### 2. Local chalana
 ```bash

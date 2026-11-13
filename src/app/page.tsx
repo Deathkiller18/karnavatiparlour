@@ -12,8 +12,9 @@ import {
 } from "@/lib/db";
 import { monthRange, qtyStr, rs, ymd } from "@/lib/format";
 import { PAY, UNITS, useDateFmt, useL, useLabel } from "@/lib/i18n";
+import { notify } from "@/lib/notify";
 import { useData } from "@/lib/useData";
-import { Empty, ErrorNote, Stat, Title } from "@/components/ui";
+import { attempt, Empty, ErrorNote, Stat, Title } from "@/components/ui";
 
 export default function Home() {
   const L = useL();
@@ -48,12 +49,10 @@ export default function Home() {
     if (!alerts.length || notif !== "granted") return;
     if (localStorage.getItem("kp-notified") === today) return;
     localStorage.setItem("kp-notified", today);
-    try {
-      new Notification("કર્ણાવતી પાર્લર", {
-        body: `${alerts.length} વસ્તુનો માલ ઓછો છે: ${alerts.slice(0, 4).map((p) => p.name).join(", ")}`,
-        icon: "/icon.svg",
-      });
-    } catch {}
+    notify(
+      "કર્ણાવતી પાર્લર",
+      `${alerts.length} વસ્તુનો માલ ઓછો છે: ${alerts.slice(0, 4).map((p) => p.name).join(", ")}`,
+    );
   }, [alerts, notif, today]);
 
   if (error) return <ErrorNote msg={error} />;
@@ -82,8 +81,7 @@ export default function Home() {
 
   async function remove(id: string) {
     if (!confirm(L("આ વેચાણ કાઢી નાખવું? માલ પાછો સ્ટોકમાં ઉમેરાશે.", "Delete this sale? Stock will be added back."))) return;
-    await deleteSale(id);
-    reload();
+    if (await attempt(() => deleteSale(id))) reload();
   }
 
   return (

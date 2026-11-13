@@ -55,14 +55,15 @@ export default function SalePage() {
   }
   const patch = (id: string, v: Partial<Line>) =>
     setCart((c) => c.map((l) => (l.id === id ? { ...l, ...v } : l)));
-  const step = (id: string, by: number) =>
-    setCart((c) =>
-      c.flatMap((l) => {
-        if (l.id !== id) return [l];
-        const n = round2(num(l.qty) + by);
-        return n > 0 ? [{ ...l, qty: String(n) }] : [];
-      }),
-    );
+  function step(id: string, by: number) {
+    const next = cart.flatMap((l) => {
+      if (l.id !== id) return [l];
+      const n = round2(num(l.qty) + by);
+      return n > 0 ? [{ ...l, qty: String(n) }] : [];
+    });
+    setCart(next);
+    if (!next.length) setOpen(false); // last item removed → nothing left to bill
+  }
 
   async function saveBill() {
     const valid = lines.filter((l) => l.qty > 0);
@@ -79,6 +80,7 @@ export default function SalePage() {
       setCart([]);
       setNote("");
       setMode("cash");
+      setDate(ymd());
       setOpen(false);
       reload();
     } catch (e) {

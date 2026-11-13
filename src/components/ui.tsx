@@ -1,5 +1,6 @@
 "use client";
 import { useEffect } from "react";
+import { friendly } from "@/lib/db";
 
 export function Sheet({
   title,
@@ -81,7 +82,7 @@ export function ErrorNote({ msg }: { msg: string }) {
   if (!msg) return null;
   return (
     <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-      {msg}
+      {friendly(msg)}
     </div>
   );
 }
@@ -97,4 +98,15 @@ export function Title({ children, right }: { children: React.ReactNode; right?: 
       {right}
     </div>
   );
+}
+
+/** Run a save/delete; if it fails, tell the user instead of failing silently. */
+export async function attempt(fn: () => Promise<unknown>) {
+  try {
+    await fn();
+    return true;
+  } catch (e) {
+    alert(friendly((e as Error).message));
+    return false;
+  }
 }

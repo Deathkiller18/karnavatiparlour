@@ -14,7 +14,7 @@ import {
 import { monthRange, num, parseYmd, qtyStr, rs, ymd } from "@/lib/format";
 import { UNITS, useDateFmt, useL, useLabel } from "@/lib/i18n";
 import { useData } from "@/lib/useData";
-import { Empty, ErrorNote, Field, Sheet, Title } from "@/components/ui";
+import { attempt, Empty, ErrorNote, Field, Sheet, Title } from "@/components/ui";
 
 const SAMPLES: [string, string, string, number, number, number][] = [
   // name, category, unit, cost, sell, low-stock level
@@ -76,15 +76,16 @@ export default function StockPage() {
 
   async function seed() {
     setBusy(true);
-    for (const [name, category, unit, cost_price, sell_price, low_stock] of SAMPLES)
-      await saveProduct({ name, category, unit, cost_price, sell_price, low_stock });
+    await attempt(async () => {
+      for (const [name, category, unit, cost_price, sell_price, low_stock] of SAMPLES)
+        await saveProduct({ name, category, unit, cost_price, sell_price, low_stock });
+    });
     setBusy(false);
     reload();
   }
   async function undoEntry(id: string) {
     if (!confirm(L("આ એન્ટ્રી કાઢવી? સ્ટોકમાંથી માલ ઓછો થશે.", "Delete this entry? Stock will be reduced."))) return;
-    await deleteStockEntry(id);
-    reload();
+    if (await attempt(() => deleteStockEntry(id))) reload();
   }
 
   return (
@@ -285,8 +286,7 @@ function ProductForm({
   }
   async function remove() {
     if (!product || !confirm(L(`"${product.name}" કાઢી નાખવી?`, `Remove "${product.name}"?`))) return;
-    await removeProduct(product.id);
-    onSaved();
+    if (await attempt(() => removeProduct(product.id))) onSaved();
   }
   const profit = num(f.sell_price) - num(f.cost_price);
 
@@ -362,6 +362,7 @@ function StockInForm({ product, onClose, onSaved }: { product: Product; onClose:
     e.preventDefault();
     if (num(qty) <= 0) return;
     setBusy(true);
+    setErr("");
     try {
       await addStock({ product, qty: num(qty), cost_price: num(cost), entry_date: date, note: note.trim() });
       onSaved();

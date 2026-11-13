@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
+import { configError, supabase } from "@/lib/supabase";
 import { isDemo, listProducts, stockState } from "@/lib/db";
 import { LangProvider, useL, useLang, useMounted } from "@/lib/i18n";
 import { ErrorNote, Field } from "./ui";
@@ -25,20 +25,36 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 function Gate({ children }: { children: React.ReactNode }) {
-  // undefined = still checking, null = logged out
   const mounted = useMounted();
+  // undefined = still checking, null = logged out
   const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [recovery, setRecovery] = useState(false);
   useEffect(() => {
+    navigator.serviceWorker?.register("/sw.js").catch(() => {});
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s);
+      // The user arrived from a "reset password" email link
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
+  if (configError)
+    return (
+      <>
+        <Header />
+        <main className="mx-auto max-w-sm px-4 pt-6">
+          <ErrorNote msg={`Supabase setup: ${configError}. Check the Environment Variables on Vercel, then redeploy.`} />
+        </main>
+      </>
+    );
   // Everything depends on the phone's date and saved data, so render only in the browser.
   if (!mounted || (!isDemo && session === undefined)) return <Header />;
   if (isDemo) return <Frame>{children}</Frame>;
   if (!session) return <Login />;
+  if (recovery) return <NewPassword onDone={() => setRecovery(false)} />;
   return <Frame email={session.user.email}>{children}</Frame>;
 }
 
@@ -86,9 +102,13 @@ function Frame({ children, email }: { children: React.ReactNode; email?: string 
   const path = usePathname();
   const [alerts, setAlerts] = useState(0);
   useEffect(() => {
-    listProducts()
-      .then((ps) => setAlerts(ps.filter((p) => stockState(p) !== "ok").length))
-      .catch(() => {});
+    const refresh = () =>
+      listProducts()
+        .then((ps) => setAlerts(ps.filter((p) => stockState(p) !== "ok").length))
+        .catch(() => {});
+    refresh();
+    window.addEventListener("kp-changed", refresh);
+    return () => window.removeEventListener("kp-changed", refresh);
   }, [path]);
 
   return (
@@ -154,7 +174,11 @@ function Login() {
     const res =
       mode === "in"
         ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
+        : await supabase.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: window.location.origin },
+          });
     setBusy(false);
     if (res.error) setErr(res.error.message);
     else if (mode === "up" && !res.data.session)
@@ -164,6 +188,18 @@ function Login() {
           "Account created. Open the link sent to your email, then log in.",
         ),
       );
+  }
+
+  async function forgot() {
+    if (!supabase) return;
+    setErr("");
+    setInfo("");
+    if (!email) return setErr(L("પહેલા ઉપર તમારો ઈમેલ લખો", "Type your email above first"));
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (error) setErr(error.message);
+    else setInfo(L("પાસવર્ડ બદલવાની લિંક ઈમેલમાં મોકલી છે.", "A password reset link was sent to your email."));
   }
 
   return (
@@ -199,6 +235,47 @@ function Login() {
             ? L("નવા છો? ખાતું બનાવો", "New here? Create an account")
             : L("ખાતું છે? લોગિન કરો", "Have an account? Log in")}
         </button>
+        {mode === "in" && (
+          <button className="mt-3 w-full text-center text-sm text-muted underline" onClick={forgot}>
+            {L("પાસવર્ડ ભૂલી ગયા?", "Forgot password?")}
+          </button>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function NewPassword({ onDone }: { onDone: () => void }) {
+  const L = useL();
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+    setBusy(true);
+    setErr("");
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) setErr(error.message);
+    else onDone();
+  }
+
+  return (
+    <div className="min-h-dvh">
+      <Header />
+      <main className="mx-auto max-w-sm px-4 pt-8">
+        <form onSubmit={submit} className="card space-y-3 p-4">
+          <h1 className="font-display text-xl font-bold text-maroon">{L("નવો પાસવર્ડ રાખો", "Set a new password")}</h1>
+          <Field label={L("નવો પાસવર્ડ", "New password")}>
+            <input className="input" type="password" required minLength={6} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+          <ErrorNote msg={err} />
+          <button className="btn-primary w-full" disabled={busy}>
+            {L("સાચવો", "Save")}
+          </button>
+        </form>
       </main>
     </div>
   );

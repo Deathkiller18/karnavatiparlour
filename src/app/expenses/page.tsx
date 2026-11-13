@@ -4,7 +4,7 @@ import { addExpense, deleteExpense, listExpenses, sum } from "@/lib/db";
 import { monthRange, num, parseYmd, rs, ymd } from "@/lib/format";
 import { EXPENSE_CATS, useDateFmt, useL, useLabel } from "@/lib/i18n";
 import { useData } from "@/lib/useData";
-import { Empty, ErrorNote, Field, Title } from "@/components/ui";
+import { attempt, Empty, ErrorNote, Field, Title } from "@/components/ui";
 
 export default function ExpensesPage() {
   const L = useL();
@@ -37,8 +37,7 @@ export default function ExpensesPage() {
   }
   async function remove(id: string) {
     if (!confirm(L("આ ખર્ચ કાઢી નાખવો?", "Delete this expense?"))) return;
-    await deleteExpense(id);
-    reload();
+    if (await attempt(() => deleteExpense(id))) reload();
   }
 
   return (
